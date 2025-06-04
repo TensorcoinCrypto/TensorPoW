@@ -1,22 +1,40 @@
 # Created by Arav Jain on 10/26/2024
 # hash.py
 
-import torch
-import random
+import hashlib
+import secrets
 
-# Tensor settings
-dtype = torch.float32
-device = 'cuda'
+try:
+    import torch
+    TORCH_AVAILABLE = True
+    dtype = torch.float32
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+except ImportError:  # Fallback to numpy if torch isn't installed
+    TORCH_AVAILABLE = False
+    import numpy as np
+    dtype = np.float32
+    device = 'cpu'
 
-# Random hashing tensor with random manual seed
-rand_seed = random.randint(0, 65535) # 2^16 - 1 = 65535, a secure 16-bit integer
-torch.manual_seed(rand_seed)
-hashing_tensor = torch.rand(
-    size=[40, 40],
-    dtype=dtype,
-    device=device
-)
-#print(hashing_tensor)
+def rand_matrix(seed):
+    """Generate a 40x40 matrix based on the given seed."""
+    if TORCH_AVAILABLE:
+        gen = torch.Generator(device=device)
+        gen.manual_seed(int(seed))
+        return torch.rand((40, 40), generator=gen, dtype=dtype, device=device)
+    else:
+        np.random.seed(int(seed) % (2 ** 32))
+        return np.random.rand(40, 40).astype(dtype)
+
+def matmul(a, b):
+    return torch.matmul(a, b) if TORCH_AVAILABLE else a @ b
+
+def to_numpy(t):
+    return t.cpu().numpy() if TORCH_AVAILABLE else t
+
+# Security: use a larger search space for the PoW seed
+SEED_BITS = 24
+rand_seed = secrets.randbits(SEED_BITS)
+hashing_tensor = rand_matrix(rand_seed)
 
 # List of possible values for each address character
 address_char_possibilities = [
@@ -28,17 +46,11 @@ address_char_possibilities = [
 ]
 
 # Create random sender address
-sender_address_characters = [random.choice(address_char_possibilities) for _ in range(40)]
-sender_address = ""
-for character in sender_address_characters:
-    sender_address = sender_address + character
+sender_address = "".join(secrets.choice(address_char_possibilities) for _ in range(40))
 #print(sender_address)
 
 # Create random recipient address
-recipient_address_characters = [random.choice(address_char_possibilities) for _ in range(40)]
-recipient_address = ""
-for character in recipient_address_characters:
-    recipient_address = recipient_address + character
+recipient_address = "".join(secrets.choice(address_char_possibilities) for _ in range(40))
 #print(recipient_address)
 
 #transaction_int_amount = str(random.randint(0, 99999999999999999999999999999999999999999999999999))
@@ -52,13 +64,8 @@ def generate_hashed_block(sender_address, recipient_address, transaction_amount,
     sender_ascii_values = [ord(char) for char in sender_address]
     recipient_ascii_values = [ord(char) for char in recipient_address]
 
-    # Initialize a 100x100 tensor with random values based on the seed
-    torch.manual_seed(seed)
-    transaction_tensor = torch.rand(
-        size=[40, 40],
-        dtype=dtype,
-        device=device
-    )
+    # Initialize a 40x40 tensor with random values based on the seed
+    transaction_tensor = rand_matrix(seed)
 
     # Fill the first [40, 1] segment with the sender's ASCII values
     for i in range(min(len(sender_ascii_values), 40)):
@@ -80,7 +87,12 @@ def generate_hashed_block(sender_address, recipient_address, transaction_amount,
     for i in range(20):
         transaction_tensor[i+20, 39] = float(transaction_dec_amount_with_zeros[i])
 
-    return sender_address, recipient_address, transaction_amount, seed, transaction_tensor, torch.matmul(transaction_tensor, hashing_tensor)
+    hashed_block = matmul(transaction_tensor, hashing_tensor)
+    tx_id = hashlib.blake2b(to_numpy(hashed_block).tobytes()).hexdigest()
+    return sender_address, recipient_address, transaction_amount, seed, transaction_tensor, hashed_block, tx_id
 
-sender_address, recipient_address, transaction_amount, seed, transaction_tensor, hashed_block = generate_hashed_block(sender_address, recipient_address, transaction_amount, rand_seed)
+sender_address, recipient_address, transaction_amount, seed, transaction_tensor, hashed_block, transaction_id = generate_hashed_block(
+    sender_address, recipient_address, transaction_amount, rand_seed
+)
 #print(hashed_block)
+
