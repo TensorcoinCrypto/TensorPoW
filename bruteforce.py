@@ -18,5 +18,6 @@ if hash.to_numpy(hashed_block_check).tolist() == hash.to_numpy(hash.hashed_block
     print(f"Actual transaction amount: {float(transaction_amount)}")
     print(f"Actual seed: {int(seed)}")
     print(f"Transaction ID: {tx_id_check}")
+    print(f"Transaction computation time: {hash.transaction_time:.6f} seconds")
 else:
     print("Transaction verification failed")
