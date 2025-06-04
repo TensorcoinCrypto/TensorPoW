@@ -3,6 +3,7 @@
 
 import hashlib
 import secrets
+import time
 
 try:
     import torch
@@ -91,8 +92,11 @@ def generate_hashed_block(sender_address, recipient_address, transaction_amount,
     tx_id = hashlib.blake2b(to_numpy(hashed_block).tobytes()).hexdigest()
     return sender_address, recipient_address, transaction_amount, seed, transaction_tensor, hashed_block, tx_id
 
+# Measure the time required to generate the hashed block
+_start = time.perf_counter()
 sender_address, recipient_address, transaction_amount, seed, transaction_tensor, hashed_block, transaction_id = generate_hashed_block(
     sender_address, recipient_address, transaction_amount, rand_seed
 )
+transaction_time = time.perf_counter() - _start
 #print(hashed_block)
 
